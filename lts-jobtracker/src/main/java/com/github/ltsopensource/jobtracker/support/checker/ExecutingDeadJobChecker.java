@@ -199,11 +199,20 @@ public class ExecutingDeadJobChecker {
             jobPo.setGmtModified(SystemClock.now());
             jobPo.setTaskTrackerIdentity(null);
             jobPo.setIsRunning(false);
-            // 1. add to executable queue
-            try {
-                appContext.getExecutableJobQueue().add(jobPo);
-            } catch (DupEntryException e) {
-                LOGGER.warn("ExecutableJobQueue already exist:" + JSON.toJSONString(jobPo));
+            if (jobPo.getRetryTimes() != null && jobPo.getRetryTimes() > 0 ) {
+            	jobPo.setRetryTimes(jobPo.getRetryTimes() + 1);
+            }
+            
+            //修复带病job不断重试导致系统雪崩的问题
+            if (jobPo.getMaxRetryTimes() == null || jobPo.getMaxRetryTimes() == 0 || jobPo.getMaxRetryTimes() >= jobPo.getRetryTimes() ) {
+            	// 1. add to executable queue
+                try {
+                    appContext.getExecutableJobQueue().add(jobPo);
+                } catch (DupEntryException e) {
+                    LOGGER.warn("ExecutableJobQueue already exist:" + JSON.toJSONString(jobPo));
+                }
+            } else {
+            	LOGGER.warn("dead job fail times more than MaxRetryTimes:" + JSON.toJSONString(jobPo));
             }
 
             // 2. remove from executing queue
